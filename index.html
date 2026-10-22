@@ -282,13 +282,13 @@
     border:2px solid #fff;box-shadow:0 0 0 1px rgba(216,79,38,.45);
   }
   .value{
-    width:52px;text-align:right;flex:0 0 52px;
-    font-family:var(--mono);font-size:10.5px;color:var(--accent);
+    width:56px;text-align:right;flex:0 0 56px;
+    font-family:var(--mono);font-size:12.5px;color:var(--accent);
     letter-spacing:.02em;font-variant-numeric:tabular-nums;
   }
-  .reset-setting{width:26px;height:26px;flex:0 0 auto;color:var(--dim);}
+  .reset-setting{width:28px;height:28px;flex:0 0 auto;color:var(--dim);}
   .reset-setting:hover{color:var(--text);}
-  .reset-setting svg{width:13px;height:13px;}
+  .reset-setting svg{width:15px;height:15px;}
 
   /* ---------- stage ---------- */
   .stage{
@@ -1304,7 +1304,7 @@
     const img = images[state.activeImage];
     SETTINGS.forEach(s => { img.values[s.key] = s.def; });
     img.values.crop = 0;
-    img.values.negative = 0;
+    img.values.film = 0;
     applyState();
     syncPanel();
     fitFrame();
@@ -1317,6 +1317,18 @@
 
   window.addEventListener("keydown", e => {
     const mod = e.ctrlKey || e.metaKey;
+    const active = document.activeElement;
+    const tag = active ? active.tagName : "";
+    const typing = tag === "TEXTAREA" || (active && active.isContentEditable) ||
+      (tag === "INPUT" && active.type !== "range");
+
+    if (e.key === "/" && !mod && !e.altKey && !typing) {
+      e.preventDefault();
+      toolSearch.focus();
+      toolSearch.select();
+      return;
+    }
+
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       if (e.shiftKey) redo(); else undo();
