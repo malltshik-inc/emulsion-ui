@@ -1,0 +1,1514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emulsion — Photo Editor</title>
+<style>
+  :root{
+    --bg:#f2f0ea;
+    --panel:#fbfaf7;
+    --panel-2:#f4f2ec;
+    --line:rgba(33,30,25,.09);
+    --line-strong:rgba(33,30,25,.17);
+    --text:#201f1b;
+    --muted:#75726a;
+    --dim:#a09c93;
+    --accent:#d84f26;
+    --accent-soft:rgba(216,79,38,.09);
+    --accent-line:rgba(216,79,38,.30);
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+  button{font:inherit;color:inherit;}
+  button:focus-visible,input:focus-visible{outline:1px solid rgba(216,79,38,.6);outline-offset:2px;}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    height:62px;
+    padding:0 16px;
+    border-bottom:1px solid var(--line);
+    background:rgba(250,249,245,.94);
+    position:relative;
+    z-index:10;
+  }
+  .tb-left{display:flex;align-items:center;min-width:0;}
+  .brand{display:flex;align-items:center;gap:11px;}
+  .logo{
+    width:28px;height:28px;border-radius:9px;
+    background:linear-gradient(145deg,#e8623a,#c9411c);
+    color:#fff;display:grid;place-items:center;
+    box-shadow:0 5px 14px rgba(190,58,25,.22),inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .logo svg{width:16px;height:16px;}
+  .wordmark{
+    font-family:"Palatino Linotype","Iowan Old Style",Georgia,serif;
+    font-size:21px;font-weight:600;letter-spacing:.01em;color:#201f1b;
+  }
+  .wordmark::after{content:".";color:var(--accent);}
+  .doc{display:flex;align-items:center;gap:9px;font-size:14.5px;color:#3e3c37;min-width:0;justify-self:center;}
+  .doc-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;}
+  .doc-dot{
+    width:6px;height:6px;border-radius:50%;background:var(--accent);
+    opacity:0;transition:opacity .2s;box-shadow:0 0 0 3px rgba(216,79,38,.12);
+    flex:0 0 auto;
+  }
+  .doc-dot.on{opacity:1;}
+  .doc-meta{
+    color:var(--dim);font-size:11.5px;letter-spacing:.08em;
+    padding:4px 8px;border:1px solid var(--line);border-radius:5px;
+    white-space:nowrap;font-family:var(--mono);
+  }
+  .tb-right{display:flex;align-items:center;justify-content:flex-end;gap:6px;}
+  .icon-btn{
+    width:32px;height:32px;border-radius:8px;border:1px solid transparent;
+    background:transparent;color:var(--muted);display:grid;place-items:center;
+    cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+  }
+  .icon-btn:hover:not(:disabled){background:rgba(33,30,25,.06);color:var(--text);}
+  .icon-btn:disabled{opacity:.3;cursor:default;}
+  .icon-btn svg{width:16px;height:16px;}
+  .tb-sep{width:1px;height:20px;background:var(--line);margin:0 6px;}
+  .ghost-btn{
+    height:32px;padding:0 13px;border-radius:8px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);font-size:14px;font-weight:500;
+    cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  .ghost-btn:hover{border-color:var(--line-strong);color:var(--text);background:rgba(33,30,25,.035);}
+  .primary-btn{
+    height:32px;padding:0 14px;border-radius:8px;border:1px solid rgba(190,58,25,.35);
+    background:linear-gradient(180deg,#e25b32,#cf451d);color:#fff;
+    font-size:14px;font-weight:650;display:flex;align-items:center;gap:8px;
+    cursor:pointer;transition:.15s;box-shadow:0 5px 16px rgba(190,58,25,.22);
+    white-space:nowrap;
+  }
+  .primary-btn:hover:not(:disabled){filter:brightness(1.04);box-shadow:0 7px 22px rgba(190,58,25,.3);}
+  .primary-btn:disabled{opacity:.6;cursor:default;}
+  .primary-btn svg{width:16px;height:16px;}
+
+  /* ---------- shell ---------- */
+  .app{display:flex;height:calc(100vh - 62px);min-height:0;}
+
+  /* ---------- sidebar ---------- */
+  .sidebar{
+    width:308px;flex:0 0 308px;
+    border-right:1px solid var(--line);
+    background:linear-gradient(180deg,#fbfaf7 0%,#f5f3ed 100%);
+    display:flex;flex-direction:column;
+    padding:16px 13px 14px;min-height:0;
+  }
+  .side-top{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .side-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:10px;}
+  .eyebrow{font-size:11.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);font-weight:600;}
+  .count,.dims{font-size:11.5px;color:var(--dim);font-family:var(--mono);letter-spacing:.02em;}
+  .thumbs{
+    display:flex;flex-direction:column;gap:3px;overflow-y:auto;min-height:0;
+    padding:0 2px 4px;scrollbar-width:thin;scrollbar-color:#d3cec5 transparent;
+  }
+  .thumbs::-webkit-scrollbar{width:6px;}
+  .thumbs::-webkit-scrollbar-thumb{background:#d3cec5;border-radius:99px;}
+  .thumb{
+    display:grid;grid-template-columns:64px 1fr auto;align-items:center;gap:11px;
+    padding:8px;border:1px solid transparent;border-radius:9px;
+    background:transparent;cursor:pointer;text-align:left;
+    transition:background .15s,border-color .15s;
+  }
+  .thumb:hover{background:rgba(33,30,25,.04);}
+  .thumb.active{background:linear-gradient(90deg,rgba(216,79,38,.075),rgba(33,30,25,.02));border-color:rgba(33,30,25,.09);}
+  .thumb.active .thumb-name{color:#171612;}
+  .thumb.active .thumb-media{box-shadow:0 0 0 1px var(--accent-line);}
+  .thumb-media{
+    width:64px;height:48px;border-radius:6px;overflow:hidden;position:relative;
+    background:#e7e3db;display:block;box-shadow:0 0 0 1px rgba(33,30,25,.08);
+  }
+  .thumb-media svg{width:100%;height:100%;display:block;transform-origin:50% 50%;}
+  .thumb-text{display:flex;flex-direction:column;gap:3px;min-width:0;}
+  .thumb-name{
+    font-size:14px;color:#4b4943;font-weight:500;letter-spacing:.01em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .thumb-meta{font-size:11.5px;color:var(--dim);font-family:var(--mono);white-space:nowrap;}
+  .thumb-flag{
+    width:6px;height:6px;border-radius:50%;background:var(--accent);
+    opacity:0;transition:opacity .2s;box-shadow:0 0 0 3px rgba(216,79,38,.1);
+  }
+  .thumb.edited .thumb-flag{opacity:1;}
+
+  .preview{margin-top:14px;padding-top:13px;border-top:1px solid var(--line);flex:0 0 auto;}
+  .mini-frame{
+    position:relative;border-radius:9px;overflow:hidden;
+    border:1px solid rgba(33,30,25,.09);box-shadow:0 10px 24px rgba(70,58,45,.14);
+    margin:0 auto 10px;background:#e7e3db;
+  }
+  .mini-wrap{position:absolute;inset:0;overflow:hidden;}
+
+  .photo-media{position:absolute;inset:0;transition:filter .1s linear;}
+  .photo-media svg{width:100%;height:100%;display:block;}
+
+  .fx{position:absolute;inset:0;pointer-events:none;opacity:0;}
+  .fx.wb{mix-blend-mode:soft-light;}
+  .fx.tint{mix-blend-mode:soft-light;}
+  .fx.hi{mix-blend-mode:overlay;}
+  .fx.vignette{background:radial-gradient(ellipse at 50% 46%,rgba(0,0,0,0) 38%,rgba(0,0,0,.82) 100%);}
+
+  .histo{height:50px;margin:0 2px 10px;opacity:.9;}
+  .histo svg{width:100%;height:100%;display:block;}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 2px;}
+  .stat{
+    display:flex;flex-direction:column;gap:3px;
+    background:rgba(255,255,255,.55);border:1px solid var(--line);
+    border-radius:6px;padding:7px 8px;min-width:0;
+  }
+  .stat span{font-size:10.5px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase;}
+  .stat b{font-size:12.5px;font-weight:500;color:#3d3b36;font-family:var(--mono);white-space:nowrap;}
+
+  /* ---------- workspace ---------- */
+  .workspace{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+  .settings{
+    padding:11px 16px 12px;border-bottom:1px solid var(--line);
+    background:rgba(250,249,245,.72);
+  }
+  .settings-top{display:flex;align-items:center;gap:10px;min-width:0;}
+  .tool-search{
+    position:relative;flex:0 0 172px;display:flex;align-items:center;
+  }
+  .tool-search > svg{
+    position:absolute;left:10px;width:15px;height:15px;color:var(--dim);
+    pointer-events:none;
+  }
+  .tool-search input{
+    width:100%;height:32px;padding:0 30px 0 32px;border-radius:8px;
+    border:1px solid var(--line);background:rgba(255,255,255,.62);
+    color:var(--text);font-size:13px;font-family:inherit;
+    transition:border-color .15s,background .15s,box-shadow .15s;
+  }
+  .tool-search input::placeholder{color:var(--dim);}
+  .tool-search input:focus{
+    outline:none;border-color:var(--accent-line);background:#fff;
+    box-shadow:0 0 0 3px rgba(216,79,38,.08);
+  }
+  .tool-search kbd{
+    position:absolute;right:7px;display:grid;place-items:center;
+    width:18px;height:18px;border-radius:4px;border:1px solid var(--line);
+    background:rgba(33,30,25,.03);color:var(--dim);font-family:var(--mono);
+    font-size:11px;pointer-events:none;
+  }
+  .row-sep{
+    width:1px;height:18px;background:var(--line);margin:0 6px;
+    flex:0 0 auto;align-self:center;
+  }
+  .settings-row{
+    display:flex;align-items:center;gap:4px;flex:1;min-width:0;
+    overflow-x:auto;scrollbar-width:none;margin:0 -2px;padding:2px;
+  }
+  .settings-row::-webkit-scrollbar{display:none;}
+  .setting-btn{
+    position:relative;display:inline-flex;align-items:center;
+    padding:8px 11px;border-radius:7px;border:1px solid transparent;
+    background:transparent;color:#79766e;font-size:12px;letter-spacing:.06em;
+    font-weight:600;text-transform:uppercase;cursor:pointer;white-space:nowrap;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .setting-btn:hover{background:rgba(33,30,25,.045);color:#2a2925;}
+  .setting-btn.open,.setting-btn.active{background:var(--accent-soft);border-color:rgba(216,79,38,.22);color:var(--accent);}
+  .setting-btn.changed:not(.open){color:#4a4842;}
+  .setting-btn.changed::after{
+    content:"";position:absolute;top:5px;right:5px;width:4px;height:4px;
+    border-radius:50%;background:var(--accent);
+  }
+  .setting-btn.open::after{content:none;}
+
+  .slider-panel{
+    display:grid;grid-template-rows:0fr;opacity:0;margin-top:0;
+    transition:grid-template-rows .3s cubic-bezier(.3,.8,.25,1),opacity .2s ease,margin-top .3s;
+  }
+  .slider-panel.open{grid-template-rows:1fr;opacity:1;margin-top:10px;}
+  .panel-inner{overflow:hidden;min-height:0;}
+  .panel-content{
+    display:flex;align-items:center;gap:16px;height:50px;
+    padding:0 10px 0 15px;
+    background:linear-gradient(180deg,#fff,#fbfaf7);
+    border:1px solid rgba(33,30,25,.08);border-radius:10px;
+    box-shadow:0 8px 20px rgba(70,58,45,.05),inset 0 1px 0 #fff;
+  }
+  .panel-label{display:flex;align-items:baseline;gap:8px;width:164px;flex:0 0 164px;min-width:0;}
+  .panel-label b{font-size:14px;font-weight:600;color:#33312c;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .panel-label span{font-size:10.5px;letter-spacing:.13em;color:var(--dim);text-transform:uppercase;}
+  .slider-controls{display:flex;align-items:center;gap:16px;flex:1;min-width:0;}
+  .crop-controls{display:flex;align-items:center;flex:1;min-width:0;}
+  .ratio-chips{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;}
+  .ratio-chips::-webkit-scrollbar{display:none;}
+  .ratio-chip{
+    height:28px;padding:0 11px;border-radius:6px;border:1px solid var(--line);
+    background:transparent;color:var(--muted);font-size:12px;font-weight:600;
+    font-family:var(--mono);cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  .ratio-chip:hover{border-color:var(--line-strong);color:var(--text);background:rgba(33,30,25,.03);}
+  .ratio-chip.active{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent);}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;min-width:70px;
+    height:20px;background:transparent;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track{
+    height:3px;border-radius:99px;
+    background:linear-gradient(90deg,#e2ded6,#ccc7be);
+    box-shadow:inset 0 0 0 1px rgba(33,30,25,.03);
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:13px;height:13px;margin-top:-5px;
+    border-radius:50%;background:var(--accent);border:2px solid #fff;
+    box-shadow:0 0 0 1px rgba(216,79,38,.45),0 2px 7px rgba(70,58,45,.25);
+    transition:transform .12s;
+  }
+  input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.1);}
+  input[type=range]:active::-webkit-slider-thumb{transform:scale(1.16);}
+  input[type=range]::-moz-range-track{height:3px;border-radius:99px;background:#d7d2c9;}
+  input[type=range]::-moz-range-thumb{
+    width:11px;height:11px;border-radius:50%;background:var(--accent);
+    border:2px solid #fff;box-shadow:0 0 0 1px rgba(216,79,38,.45);
+  }
+  .value{
+    width:52px;text-align:right;flex:0 0 52px;
+    font-family:var(--mono);font-size:10.5px;color:var(--accent);
+    letter-spacing:.02em;font-variant-numeric:tabular-nums;
+  }
+  .reset-setting{width:26px;height:26px;flex:0 0 auto;color:var(--dim);}
+  .reset-setting:hover{color:var(--text);}
+  .reset-setting svg{width:13px;height:13px;}
+
+  /* ---------- stage ---------- */
+  .stage{
+    position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;
+    padding:26px;overflow:hidden;
+    background:radial-gradient(1000px 650px at 50% 42%,#faf9f6 0%,#efebe4 55%,#e7e2da 100%);
+  }
+  .stage::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:radial-gradient(rgba(33,30,25,.13) 1px,transparent 1px);
+    background-size:26px 26px;opacity:.28;
+    -webkit-mask-image:radial-gradient(ellipse at center,#000 20%,transparent 75%);
+    mask-image:radial-gradient(ellipse at center,#000 20%,transparent 75%);
+  }
+  .frame{
+    position:relative;border-radius:5px;overflow:hidden;background:#e7e3db;
+    box-shadow:0 32px 70px -20px rgba(60,50,40,.42),0 0 0 1px rgba(33,30,25,.1);
+    transition:width .34s cubic-bezier(.3,.8,.25,1),height .34s cubic-bezier(.3,.8,.25,1);
+    flex:0 0 auto;
+  }
+  .photo-wrap{position:absolute;inset:0;overflow:hidden;background:#e7e3db;}
+  .crop-grid{
+    position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .2s;z-index:6;
+    background-image:
+      linear-gradient(90deg,transparent calc(33.333% - .5px),rgba(255,255,255,.7) 33.333%,transparent calc(33.333% + .5px)),
+      linear-gradient(90deg,transparent calc(66.666% - .5px),rgba(255,255,255,.7) 66.666%,transparent calc(66.666% + .5px)),
+      linear-gradient(0deg,transparent calc(33.333% - .5px),rgba(255,255,255,.7) 33.333%,transparent calc(33.333% + .5px)),
+      linear-gradient(0deg,transparent calc(66.666% - .5px),rgba(255,255,255,.7) 66.666%,transparent calc(66.666% + .5px));
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);
+  }
+  .frame.cropping .crop-grid{opacity:1;}
+
+  .stage.comparing .photo-media{filter:none!important;transform:none!important;}
+  .stage.comparing .fx{opacity:0!important;}
+  .stage.comparing .crop-grid{opacity:0!important;}
+
+  .stage-info{
+    position:absolute;left:22px;bottom:20px;display:flex;align-items:center;gap:8px;
+    font-size:12px;letter-spacing:.04em;color:var(--dim);
+    font-family:var(--mono);pointer-events:none;white-space:nowrap;
+  }
+  .sdot{width:2px;height:2px;border-radius:50%;background:#b9b4aa;display:inline-block;flex:0 0 auto;}
+  .stage-right{
+    position:absolute;right:22px;bottom:20px;font-size:12px;letter-spacing:.04em;
+    color:var(--dim);font-family:var(--mono);pointer-events:none;white-space:nowrap;
+  }
+  .compare{
+    position:absolute;left:50%;bottom:16px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:8px;height:33px;padding:0 14px;
+    border-radius:99px;border:1px solid rgba(33,30,25,.1);
+    background:rgba(255,255,255,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    color:#6b685f;font-size:12.5px;letter-spacing:.03em;cursor:pointer;
+    user-select:none;transition:.18s;box-shadow:0 10px 30px rgba(70,58,45,.14);
+  }
+  .compare:hover{border-color:rgba(33,30,25,.2);color:#26241f;}
+  .compare.active{border-color:var(--accent-line);color:var(--accent);background:rgba(216,79,38,.07);}
+  .compare svg{width:16px;height:16px;}
+
+  /* ---------- toast ---------- */
+  .toast{
+    position:fixed;left:50%;bottom:24px;transform:translate(-50%,14px);
+    display:flex;align-items:center;gap:9px;padding:11px 16px;border-radius:9px;
+    background:#201f1b;border:1px solid rgba(255,255,255,.08);
+    color:#f2f0ea;font-size:14px;
+    box-shadow:0 18px 50px rgba(40,32,24,.35);
+    opacity:0;pointer-events:none;transition:.25s ease;z-index:50;
+  }
+  .toast.show{opacity:1;transform:translate(-50%,0);}
+  .toast-dot{
+    width:6px;height:6px;border-radius:50%;background:#ff7a4e;
+    box-shadow:0 0 10px rgba(255,122,78,.5);flex:0 0 auto;
+  }
+
+  /* ---------- responsive ---------- */
+  @media (max-height:780px){
+    .stats{display:none;}
+    .histo{height:34px;margin-bottom:0;}
+  }
+  @media (max-width:1000px){
+    .sidebar{width:270px;flex-basis:270px;}
+    .preview{display:none;}
+    .stage-info,.stage-right{display:none;}
+  }
+  @media (max-width:820px){
+    .ghost-btn{display:none;}
+    .doc-meta{display:none;}
+  }
+  @media (max-width:760px){
+    .sidebar{display:none;}
+    .topbar{padding:0 12px;}
+    .tb-sep{display:none;}
+    .settings{padding-left:12px;padding-right:12px;}
+    .tool-search{flex-basis:148px;}
+    .tool-search kbd{display:none;}
+    .tool-search input{padding-right:12px;}
+    .panel-label{width:auto;flex-basis:auto;}
+    .panel-label span{display:none;}
+    .stage{padding:16px;}
+    .doc-name{max-width:130px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-left">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="12" cy="12" r="7.5"></circle>
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M12 4.5v3M19.5 12h-3M12 19.5v-3M4.5 12h3"></path>
+        </svg>
+      </span>
+      <span class="wordmark">Emulsion</span>
+    </div>
+  </div>
+
+  <div class="doc">
+    <span class="doc-dot" id="editDot" aria-hidden="true"></span>
+    <span class="doc-name" id="docName">Dune Study</span>
+    <span class="doc-meta" id="docMeta">RAW · 45 MP</span>
+  </div>
+
+  <div class="tb-right">
+    <button class="icon-btn" id="undoBtn" type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 14 4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path>
+      </svg>
+    </button>
+    <button class="icon-btn" id="redoBtn" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m15 14 5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path>
+      </svg>
+    </button>
+    <span class="tb-sep" aria-hidden="true"></span>
+    <button class="ghost-btn" id="resetAll" type="button">Reset</button>
+    <button class="primary-btn" id="exportBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M4 20h16"></path>
+      </svg>
+      <span>Export</span>
+    </button>
+  </div>
+</header>
+
+<main class="app">
+  <aside class="sidebar">
+    <div class="side-top">
+      <div class="side-head">
+        <span class="eyebrow">Library</span>
+        <span class="count" id="count">05</span>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="preview">
+      <div class="side-head">
+        <span class="eyebrow">Histogram</span>
+        <span class="dims" id="dims">8256 × 6192</span>
+      </div>
+      <div class="mini-frame" id="miniFrame">
+        <div class="mini-wrap" id="miniWrap">
+          <div class="photo-media" id="miniMedia"></div>
+          <div class="fx wb"></div>
+          <div class="fx tint"></div>
+          <div class="fx hi"></div>
+          <div class="fx vignette"></div>
+        </div>
+      </div>
+      <div class="histo" id="histogram"></div>
+      <div class="stats">
+        <div class="stat"><span>ISO</span><b id="statIso">100</b></div>
+        <div class="stat"><span>Aperture</span><b id="statAp">f/8</b></div>
+        <div class="stat"><span>Shutter</span><b id="statSh">1/250s</b></div>
+      </div>
+    </div>
+  </aside>
+
+  <section class="workspace">
+    <div class="settings">
+      <div class="settings-top">
+        <div class="tool-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="11" cy="11" r="6.5"></circle>
+            <path d="m16 16 4 4"></path>
+          </svg>
+          <input id="toolSearch" type="text" placeholder="Search tools" aria-label="Search tools"
+                 autocomplete="off" spellcheck="false">
+          <kbd>/</kbd>
+        </div>
+        <div class="settings-row" id="settingsRow"></div>
+      </div>
+      <div class="slider-panel" id="sliderPanel">
+        <div class="panel-inner">
+          <div class="panel-content">
+            <div class="panel-label">
+              <b id="panelName">White Balance</b>
+              <span id="panelCode">WB</span>
+            </div>
+            <div class="slider-controls" id="sliderControls">
+              <input type="range" id="slider" min="-100" max="100" value="0" step="1" aria-label="White Balance">
+              <output class="value" id="panelValue">0</output>
+            </div>
+            <div class="crop-controls" id="cropControls" hidden>
+              <div class="ratio-chips" id="ratioChips"></div>
+            </div>
+            <button class="icon-btn reset-setting" id="resetSetting" type="button" title="Reset adjustment" aria-label="Reset adjustment">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="frame" id="frame">
+        <div class="photo-wrap" id="photoWrap">
+          <div class="photo-media" id="photoMedia"></div>
+          <div class="fx wb"></div>
+          <div class="fx tint"></div>
+          <div class="fx hi"></div>
+          <div class="fx vignette"></div>
+        </div>
+        <div class="crop-grid" aria-hidden="true"></div>
+      </div>
+
+      <div class="stage-info" id="stageInfo">
+        1/250s<span class="sdot"></span>f/8<span class="sdot"></span>ISO 100<span class="sdot"></span>70mm
+      </div>
+      <div class="stage-right" id="stageRight">sRGB · 4:3</div>
+
+      <button class="compare" id="compareBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"></path>
+          <circle cx="12" cy="12" r="2.5"></circle>
+        </svg>
+        <span>Hold to compare</span>
+      </button>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <span class="toast-dot"></span><span id="toastText"></span>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+
+  /* ---------------- scenes ---------------- */
+  const SCENES = {
+    dune: `<svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="d1sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1b1020"/>
+          <stop offset="0.38" stop-color="#5b2a3a"/>
+          <stop offset="0.66" stop-color="#c2674a"/>
+          <stop offset="1" stop-color="#f0b779"/>
+        </linearGradient>
+        <radialGradient id="d1sun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffe9bf"/>
+          <stop offset="0.35" stop-color="#ffd08a" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#ffb466" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="d1sand" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#cf8a55"/>
+          <stop offset="1" stop-color="#8f5334"/>
+        </linearGradient>
+        <linearGradient id="d1fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f6c98d" stop-opacity="0"/>
+          <stop offset="0.45" stop-color="#f6c98d" stop-opacity="0.5"/>
+          <stop offset="1" stop-color="#f6c98d" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="d1blur" x="-20%" y="-300%" width="140%" height="700%">
+          <feGaussianBlur stdDeviation="9"/>
+        </filter>
+      </defs>
+      <rect width="1200" height="900" fill="url(#d1sky)"/>
+      <g fill="#f7c391" opacity="0.2" filter="url(#d1blur)">
+        <ellipse cx="360" cy="300" rx="280" ry="9"/>
+        <ellipse cx="650" cy="238" rx="190" ry="6"/>
+        <ellipse cx="1000" cy="330" rx="240" ry="8"/>
+      </g>
+      <circle cx="815" cy="475" r="230" fill="url(#d1sun)"/>
+      <circle cx="815" cy="475" r="46" fill="#ffe8bd" opacity="0.95"/>
+      <rect y="380" width="1200" height="260" fill="url(#d1fade)"/>
+      <g fill="none" stroke="#3a1d24" stroke-width="2" stroke-linecap="round" opacity="0.45">
+        <path d="M300 330 q8 -7 16 0 q8 -7 16 0"/>
+        <path d="M352 298 q6 -5 12 0 q6 -5 12 0"/>
+      </g>
+      <path d="M0 520 C220 470 380 560 620 520 C840 483 1010 520 1200 495 L1200 900 L0 900Z" fill="#a45f3e"/>
+      <path d="M0 610 C250 545 470 660 720 600 C950 545 1090 610 1200 585 L1200 900 L0 900Z" fill="url(#d1sand)"/>
+      <path d="M0 735 C260 660 520 760 810 700 C1010 660 1120 700 1200 680 L1200 900 L0 900Z" fill="#7c462d"/>
+      <path d="M0 735 C260 660 520 760 810 700 C1010 660 1120 700 1200 680" fill="none" stroke="#e9b077" stroke-opacity="0.55" stroke-width="2"/>
+      <path d="M0 610 C250 545 470 660 720 600 C950 545 1090 610 1200 585" fill="none" stroke="#f3c48e" stroke-opacity="0.35" stroke-width="2"/>
+      <path d="M180 760 C420 700 640 760 900 720" fill="none" stroke="#5d3324" stroke-opacity="0.3" stroke-width="40" stroke-linecap="round"/>
+    </svg>`,
+
+    alpine: `<svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="aSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0a1020"/>
+          <stop offset="0.42" stop-color="#25314e"/>
+          <stop offset="0.7" stop-color="#7c5b6b"/>
+          <stop offset="1" stop-color="#d19170"/>
+        </linearGradient>
+        <radialGradient id="aGlow" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffe2c4" stop-opacity="0.9"/>
+          <stop offset="0.35" stop-color="#ffbd8e" stop-opacity="0.35"/>
+          <stop offset="1" stop-color="#ff9d6a" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="aFar" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#4b5578"/>
+          <stop offset="1" stop-color="#2a3150"/>
+        </linearGradient>
+        <linearGradient id="aMid" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#252d47"/>
+          <stop offset="1" stop-color="#151a2c"/>
+        </linearGradient>
+        <linearGradient id="aNear" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#0e1220"/>
+          <stop offset="1" stop-color="#070910"/>
+        </linearGradient>
+        <linearGradient id="aMist" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#d7b8b0" stop-opacity="0"/>
+          <stop offset="0.6" stop-color="#d7b8b0" stop-opacity="0.16"/>
+          <stop offset="1" stop-color="#d7b8b0" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="900" fill="url(#aSky)"/>
+      <circle cx="858" cy="352" r="250" fill="url(#aGlow)"/>
+      <circle cx="858" cy="352" r="32" fill="#ffe8cf" opacity="0.95"/>
+      <g fill="#ffffff">
+        <circle cx="180" cy="150" r="1.4" opacity="0.5"/>
+        <circle cx="360" cy="96" r="1" opacity="0.35"/>
+        <circle cx="620" cy="180" r="1.2" opacity="0.4"/>
+        <circle cx="1030" cy="140" r="1.4" opacity="0.5"/>
+        <circle cx="740" cy="90" r="0.9" opacity="0.3"/>
+        <circle cx="480" cy="240" r="1" opacity="0.28"/>
+      </g>
+      <path d="M0 572 L138 456 L232 512 L358 398 L470 502 L584 436 L706 528 L828 448 L958 540 L1064 478 L1160 540 L1200 516 L1200 900 L0 900Z" fill="url(#aFar)"/>
+      <path d="M358 398 L390 462 L324 470Z" fill="#cdd8f0" opacity="0.22"/>
+      <path d="M828 448 L856 506 L798 510Z" fill="#cdd8f0" opacity="0.18"/>
+      <path d="M0 660 L152 552 L282 630 L438 528 L610 648 L762 566 L924 660 L1064 596 L1200 652 L1200 900 L0 900Z" fill="url(#aMid)"/>
+      <rect y="560" width="1200" height="220" fill="url(#aMist)"/>
+      <path d="M0 776 L166 668 L330 752 L512 664 L694 772 L880 700 L1058 782 L1200 726 L1200 900 L0 900Z" fill="url(#aNear)"/>
+      <path d="M138 900 L172 806 L206 900Z" fill="#04060a"/>
+      <path d="M196 900 L226 826 L256 900Z" fill="#04060a"/>
+      <path d="M1004 900 L1040 810 L1076 900Z" fill="#04060a"/>
+    </svg>`,
+
+    night: `<svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <radialGradient id="nBg" cx="0.5" cy="0.45" r="0.8">
+          <stop offset="0" stop-color="#1a2140"/>
+          <stop offset="0.55" stop-color="#0b0f1e"/>
+          <stop offset="1" stop-color="#04050a"/>
+        </radialGradient>
+        <radialGradient id="nPink" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ff5cb4" stop-opacity="0.85"/>
+          <stop offset="0.4" stop-color="#ff5cb4" stop-opacity="0.28"/>
+          <stop offset="1" stop-color="#ff5cb4" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="nCyan" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#38e8ff" stop-opacity="0.7"/>
+          <stop offset="0.45" stop-color="#38e8ff" stop-opacity="0.2"/>
+          <stop offset="1" stop-color="#38e8ff" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="nAmber" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#ffb347" stop-opacity="0.7"/>
+          <stop offset="0.45" stop-color="#ffb347" stop-opacity="0.18"/>
+          <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="nStreak" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+          <stop offset="0.5" stop-color="#9beaff" stop-opacity="0.8"/>
+          <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="nFloor" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#38e8ff" stop-opacity="0"/>
+          <stop offset="1" stop-color="#38e8ff" stop-opacity="0.1"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="900" fill="url(#nBg)"/>
+      <circle cx="300" cy="420" r="380" fill="url(#nPink)"/>
+      <circle cx="930" cy="520" r="420" fill="url(#nCyan)"/>
+      <circle cx="650" cy="200" r="300" fill="url(#nAmber)"/>
+      <circle cx="240" cy="270" r="52" fill="url(#nPink)" opacity="0.9"/>
+      <circle cx="325" cy="575" r="34" fill="url(#nPink)" opacity="0.55"/>
+      <circle cx="1020" cy="300" r="44" fill="url(#nCyan)" opacity="0.6"/>
+      <circle cx="880" cy="690" r="26" fill="url(#nCyan)" opacity="0.5"/>
+      <circle cx="560" cy="660" r="18" fill="url(#nAmber)" opacity="0.6"/>
+      <circle cx="726" cy="318" r="13" fill="#fff5dc" opacity="0.55"/>
+      <circle cx="820" cy="455" r="112" fill="none" stroke="url(#nStreak)" stroke-width="2" opacity="0.5"/>
+      <path d="M120 760 L1080 140" stroke="url(#nStreak)" stroke-width="1.5" opacity="0.35"/>
+      <path d="M180 900 L420 900 L700 760 L560 900Z" fill="#04060c" opacity="0.6"/>
+      <path d="M760 900 L960 900 L1200 700 L1200 900Z" fill="#04060c" opacity="0.55"/>
+      <rect y="620" width="1200" height="280" fill="url(#nFloor)"/>
+    </svg>`,
+
+    still: `<svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="sBg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#d9c8b4"/>
+          <stop offset="0.5" stop-color="#a9947c"/>
+          <stop offset="1" stop-color="#6a5849"/>
+        </linearGradient>
+        <linearGradient id="sTable" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#8d7258"/>
+          <stop offset="1" stop-color="#4a3b2e"/>
+        </linearGradient>
+        <radialGradient id="sLight" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#fff4e2" stop-opacity="0.6"/>
+          <stop offset="1" stop-color="#fff4e2" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="sVase" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#101013"/>
+          <stop offset="0.7" stop-color="#302f35"/>
+          <stop offset="1" stop-color="#0c0c0f"/>
+        </linearGradient>
+        <radialGradient id="sSphere" cx="0.35" cy="0.28" r="0.8">
+          <stop offset="0" stop-color="#ffd3a1"/>
+          <stop offset="0.35" stop-color="#ef8a4e"/>
+          <stop offset="0.8" stop-color="#9c3f24"/>
+          <stop offset="1" stop-color="#5e2115"/>
+        </radialGradient>
+        <filter id="sBlur" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="18"/>
+        </filter>
+        <filter id="sBlur2" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="7"/>
+        </filter>
+      </defs>
+      <rect width="1200" height="900" fill="url(#sBg)"/>
+      <ellipse cx="330" cy="310" rx="460" ry="360" fill="url(#sLight)"/>
+      <rect y="632" width="1200" height="268" fill="url(#sTable)"/>
+      <rect y="632" width="1200" height="2" fill="#efe0c9" opacity="0.22"/>
+      <ellipse cx="700" cy="668" rx="360" ry="40" fill="#241a13" opacity="0.45" filter="url(#sBlur)"/>
+      <path d="M470 300 C492 226 548 208 590 168" stroke="#4c3b2a" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M486 300 C500 240 540 250 566 214" stroke="#4c3b2a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <ellipse cx="588" cy="172" rx="13" ry="6" fill="#6b5a44" transform="rotate(-32 588 172)"/>
+      <ellipse cx="562" cy="218" rx="12" ry="5.5" fill="#6b5a44" transform="rotate(-50 562 218)"/>
+      <ellipse cx="540" cy="248" rx="10" ry="4.5" fill="#6b5a44" transform="rotate(24 540 248)"/>
+      <path d="M430 300 h80 l8 46 c70 36 104 116 90 188 c-12 62-62 106-134 106 s-122-44-134-106 c-14-72 20-152 90-188 z" fill="url(#sVase)"/>
+      <ellipse cx="470" cy="300" rx="40" ry="9" fill="#3a393f"/>
+      <ellipse cx="470" cy="302" rx="30" ry="6" fill="#0b0b0e"/>
+      <path d="M436 352 c-16 62 -10 128 18 172" stroke="#f3dec4" stroke-opacity="0.22" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <ellipse cx="770" cy="658" rx="120" ry="20" fill="#1a110c" opacity="0.5" filter="url(#sBlur2)"/>
+      <circle cx="762" cy="560" r="96" fill="url(#sSphere)"/>
+      <ellipse cx="728" cy="522" rx="20" ry="13" fill="#ffe2c0" opacity="0.5" filter="url(#sBlur2)"/>
+      <path d="M900 646 h110 v-8 c0-10 -14-18 -30-18 h-50 c-16 0 -30 8 -30 18 z" fill="#26211d"/>
+      <ellipse cx="955" cy="644" rx="55" ry="9" fill="#3d352e"/>
+    </svg>`,
+
+    coast: `<svg viewBox="0 0 1200 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="cSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#bfd6de"/>
+          <stop offset="0.55" stop-color="#e8d3c2"/>
+          <stop offset="1" stop-color="#f6e2cd"/>
+        </linearGradient>
+        <radialGradient id="cSun" cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" stop-color="#fff6e4"/>
+          <stop offset="0.3" stop-color="#ffe0b5" stop-opacity="0.8"/>
+          <stop offset="1" stop-color="#ffd09a" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="cSea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#2f7480"/>
+          <stop offset="0.5" stop-color="#144250"/>
+          <stop offset="1" stop-color="#071c26"/>
+        </linearGradient>
+        <linearGradient id="cCliff" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#171d22"/>
+          <stop offset="1" stop-color="#2c3438"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="900" fill="url(#cSky)"/>
+      <circle cx="790" cy="392" r="260" fill="url(#cSun)"/>
+      <circle cx="790" cy="392" r="42" fill="#fff1d8"/>
+      <rect y="425" width="1200" height="475" fill="url(#cSea)"/>
+      <rect y="425" width="1200" height="3" fill="#f6d9b6" opacity="0.5"/>
+      <path d="M0 425 L0 470 L180 460 L260 448 L340 462 L420 452 L460 425 Z" fill="#223a40" opacity="0.9"/>
+      <g fill="#ffd6a0">
+        <ellipse cx="790" cy="470" rx="26" ry="2" opacity="0.5"/>
+        <ellipse cx="780" cy="500" rx="40" ry="2.5" opacity="0.45"/>
+        <ellipse cx="805" cy="540" rx="58" ry="3" opacity="0.4"/>
+        <ellipse cx="785" cy="590" rx="80" ry="3.5" opacity="0.32"/>
+        <ellipse cx="810" cy="650" rx="110" ry="4" opacity="0.25"/>
+        <ellipse cx="780" cy="720" rx="140" ry="5" opacity="0.18"/>
+      </g>
+      <g stroke="#cfe9ea" stroke-opacity="0.18" stroke-width="1.5" fill="none">
+        <path d="M80 560 q40 -6 80 0 t80 0 t80 0"/>
+        <path d="M300 640 q50 -8 100 0 t100 0"/>
+        <path d="M620 720 q60 -8 120 0 t120 0"/>
+        <path d="M120 800 q70 -10 140 0 t140 0"/>
+      </g>
+      <path d="M1200 900 L1200 470 L1120 488 L1050 545 L1000 610 L1030 690 L980 760 L1010 830 L960 900 Z" fill="url(#cCliff)"/>
+      <path d="M1200 470 L1120 488 L1050 545" stroke="#cfe0e0" stroke-opacity="0.25" stroke-width="2" fill="none"/>
+      <path d="M0 900 L0 690 L60 700 L120 760 L100 830 L150 900 Z" fill="#10161a"/>
+      <g stroke="#2a3a40" stroke-width="2" fill="none" opacity="0.6">
+        <path d="M420 250 q10 -10 20 0 q10 -10 20 0"/>
+        <path d="M480 210 q8 -8 16 0 q8 -8 16 0"/>
+      </g>
+    </svg>`
+  };
+
+  /* ---------------- data ---------------- */
+  const SETTINGS = [
+    { key: "wb",         label: "WB",         name: "White Balance", min: -100, max: 100, def: 0 },
+    { key: "tint",       label: "Tint",       name: "Tint",          min: -100, max: 100, def: 0 },
+    { key: "ev",         label: "EV",         name: "Exposure",      min: -100, max: 100, def: 0 },
+    { key: "contrast",   label: "Contrast",   name: "Contrast",      min: -100, max: 100, def: 0 },
+    { key: "highlights", label: "Highlights", name: "Highlights",    min: -100, max: 100, def: 0 },
+    { key: "shadows",    label: "Shadows",    name: "Shadows",       min: -100, max: 100, def: 0 },
+    { key: "clarity",    label: "Clarity",    name: "Clarity",       min: -100, max: 100, def: 0 },
+    { key: "sat",        label: "Saturation", name: "Saturation",    min: -100, max: 100, def: 0 },
+    { key: "vignette",   label: "Vignette",   name: "Vignette",      min: 0,    max: 100, def: 0 },
+    { key: "rotate",     label: "Rotate",     name: "Rotate",        min: -180, max: 180, def: 0, unit: "°" }
+  ];
+
+  const CROPS = [
+    { label: "4:3",  ratio: 4 / 3 },
+    { label: "1:1",  ratio: 1 },
+    { label: "4:5",  ratio: 4 / 5 },
+    { label: "3:2",  ratio: 3 / 2 },
+    { label: "16:9", ratio: 16 / 9 }
+  ];
+
+  const images = [
+    {
+      name: "Dune Study", meta: "RAW · 45 MP", dims: "8256 × 6192",
+      exif: { iso: "100", aperture: "f/8", shutter: "1/250s", focal: "70mm" },
+      svg: SCENES.dune
+    },
+    {
+      name: "Alpine Dusk", meta: "RAW · 61 MP", dims: "9504 × 7128",
+      exif: { iso: "200", aperture: "f/11", shutter: "1/60s", focal: "24mm" },
+      svg: SCENES.alpine
+    },
+    {
+      name: "Night Bloom", meta: "JPEG · 24 MP", dims: "6000 × 4500",
+      exif: { iso: "1600", aperture: "f/1.8", shutter: "1/50s", focal: "50mm" },
+      svg: SCENES.night
+    },
+    {
+      name: "Still Life No. 04", meta: "TIFF · 50 MP", dims: "8600 × 6450",
+      exif: { iso: "64", aperture: "f/5.6", shutter: "1/125s", focal: "90mm" },
+      svg: SCENES.still
+    },
+    {
+      name: "Coastline", meta: "RAW · 33 MP", dims: "7008 × 5256",
+      exif: { iso: "100", aperture: "f/9", shutter: "1/320s", focal: "35mm" },
+      svg: SCENES.coast
+    }
+  ];
+
+  images.forEach(img => {
+    img.values = {};
+    SETTINGS.forEach(s => { img.values[s.key] = s.def; });
+    img.values.crop = 0;
+    img.values.film = 0;
+  });
+
+  /* ---------------- elements ---------------- */
+  const photoMedia = $("#photoMedia");
+  const miniMedia = $("#miniMedia");
+  const photoWrap = $("#photoWrap");
+  const miniWrap = $("#miniWrap");
+  const miniFrame = $("#miniFrame");
+  const previewPanel = $(".preview");
+  const thumbsEl = $("#thumbs");
+  const settingsRow = $("#settingsRow");
+  const sliderPanel = $("#sliderPanel");
+  const slider = $("#slider");
+  const sliderControls = $("#sliderControls");
+  const cropControls = $("#cropControls");
+  const ratioChips = $("#ratioChips");
+  const panelName = $("#panelName");
+  const panelCode = $("#panelCode");
+  const panelValue = $("#panelValue");
+  const resetSettingBtn = $("#resetSetting");
+  const toolSearch = $("#toolSearch");
+  const resetAllBtn = $("#resetAll");
+  const exportBtn = $("#exportBtn");
+  const exportLabel = exportBtn.querySelector("span");
+  const undoBtn = $("#undoBtn");
+  const redoBtn = $("#redoBtn");
+  const docName = $("#docName");
+  const docMeta = $("#docMeta");
+  const editDot = $("#editDot");
+  const dimsEl = $("#dims");
+  const statIso = $("#statIso");
+  const statAp = $("#statAp");
+  const statSh = $("#statSh");
+  const stageInfo = $("#stageInfo");
+  const stageRight = $("#stageRight");
+  const histogram = $("#histogram");
+  const stage = $("#stage");
+  const frame = $("#frame");
+  const compareBtn = $("#compareBtn");
+  const toast = $("#toast");
+  const toastText = $("#toastText");
+
+  const state = { activeImage: 0, openSetting: "wb" };
+
+  const getSetting = key => SETTINGS.find(s => s.key === key);
+
+  /* ---------------- filters ---------------- */
+  function filterFor(v) {
+    const brightness = 1 + v.ev * 0.005 + v.shadows * 0.0012;
+    const contrast = 1 + v.contrast * 0.004 + v.clarity * 0.0012;
+    const saturation = 1 + v.sat * 0.006 + v.clarity * 0.001;
+    return `brightness(${brightness.toFixed(3)}) contrast(${contrast.toFixed(3)}) saturate(${saturation.toFixed(3)}) invert(${v.film ? 1 : 0})`;
+  }
+
+  const currentRatio = () => (CROPS[images[state.activeImage].values.crop] || CROPS[0]).ratio;
+
+  function rotationScale(deg, ratio) {
+    const rad = Math.abs(deg) * Math.PI / 180;
+    const c = Math.abs(Math.cos(rad));
+    const s = Math.abs(Math.sin(rad));
+    return Math.max((ratio * c + s) / ratio, ratio * s + c);
+  }
+
+  function transformFor(v, ratio) {
+    const deg = v.rotate || 0;
+    if (!deg) return "none";
+    return `rotate(${deg}deg) scale(${rotationScale(deg, ratio).toFixed(4)})`;
+  }
+
+  function styleFx(wrap, v) {
+    const wb = wrap.querySelector(".fx.wb");
+    wb.style.backgroundColor = v.wb >= 0 ? "#ff963c" : "#4f9bff";
+    wb.style.opacity = (Math.abs(v.wb) / 100 * 0.45).toFixed(3);
+
+    const tint = wrap.querySelector(".fx.tint");
+    tint.style.backgroundColor = v.tint >= 0 ? "#ff4fc4" : "#4dffb0";
+    tint.style.opacity = (Math.abs(v.tint) / 100 * 0.3).toFixed(3);
+
+    const hi = wrap.querySelector(".fx.hi");
+    hi.style.backgroundColor = v.highlights >= 0 ? "#ffffff" : "#000000";
+    hi.style.opacity = (Math.abs(v.highlights) / 100 * 0.26).toFixed(3);
+
+    const vig = wrap.querySelector(".fx.vignette");
+    vig.style.opacity = (v.vignette / 100 * 0.9).toFixed(3);
+  }
+
+  const isEdited = img =>
+    SETTINGS.some(s => img.values[s.key] !== s.def) ||
+    img.values.crop !== 0 ||
+    !!img.values.film;
+
+  function applyState() {
+    const img = images[state.activeImage];
+    const v = img.values;
+    const ratio = currentRatio();
+    const f = filterFor(v);
+    const transform = transformFor(v, ratio);
+
+    photoMedia.style.filter = f;
+    miniMedia.style.filter = f;
+    photoMedia.style.transform = transform;
+    miniMedia.style.transform = transform;
+    styleFx(photoWrap, v);
+    styleFx(miniWrap, v);
+
+    document.querySelectorAll(".thumb").forEach((el, i) => {
+      const thumbImg = images[i];
+      const thumbSvg = el.querySelector(".thumb-media svg");
+      thumbSvg.style.filter = filterFor(thumbImg.values);
+      thumbSvg.style.transform = transformFor(thumbImg.values, 4 / 3);
+      el.classList.toggle("edited", isEdited(thumbImg));
+    });
+
+    document.querySelectorAll(".setting-btn").forEach(btn => {
+      const key = btn.dataset.key;
+      const isCrop = key === "crop";
+      const isFilm = key === "film";
+      const changed = isFilm ? false : isCrop ? v.crop !== 0 : v[key] !== getSetting(key).def;
+      const open = state.openSetting === key;
+      const active = isFilm && !!v.film;
+      btn.classList.toggle("changed", changed);
+      btn.classList.toggle("open", open);
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-expanded", String(open));
+      btn.setAttribute("aria-pressed", isFilm ? String(!!v.film) : "false");
+    });
+
+    frame.classList.toggle("cropping", state.openSetting === "crop");
+    stageRight.textContent = `sRGB · ${(CROPS[v.crop] || CROPS[0]).label}`;
+    editDot.classList.toggle("on", isEdited(img));
+    fitMini();
+  }
+
+  /* ---------------- history ---------------- */
+  const cloneAll = () => images.map(img => ({ ...img.values }));
+  let undoStack = [];
+  let redoStack = [];
+  let committedSnap = cloneAll();
+  let commitTimer = null;
+
+  function updateHistoryButtons() {
+    undoBtn.disabled = undoStack.length === 0;
+    redoBtn.disabled = redoStack.length === 0;
+  }
+
+  function commitNow() {
+    clearTimeout(commitTimer);
+    commitTimer = null;
+    const curr = cloneAll();
+    if (JSON.stringify(curr) !== JSON.stringify(committedSnap)) {
+      undoStack.push(committedSnap);
+      if (undoStack.length > 60) undoStack.shift();
+      redoStack.length = 0;
+      committedSnap = curr;
+      updateHistoryButtons();
+    }
+  }
+
+  function scheduleCommit() {
+    clearTimeout(commitTimer);
+    commitTimer = setTimeout(commitNow, 400);
+  }
+
+  function restoreSnapshot(snap) {
+    images.forEach((img, i) => { img.values = { ...snap[i] }; });
+    committedSnap = cloneAll();
+    applyState();
+    syncPanel();
+    fitFrame();
+    updateHistoryButtons();
+  }
+
+  function undo() {
+    commitNow();
+    if (!undoStack.length) return;
+    redoStack.push(cloneAll());
+    restoreSnapshot(undoStack.pop());
+  }
+
+  function redo() {
+    commitNow();
+    if (!redoStack.length) return;
+    undoStack.push(cloneAll());
+    restoreSnapshot(redoStack.pop());
+  }
+
+  /* ---------------- panel ---------------- */
+  function fmt(s, v) {
+    const sign = s.min < 0 && v > 0 ? "+" : "";
+    return sign + v + (s.unit || "");
+  }
+
+  function updateCropChips() {
+    const crop = images[state.activeImage].values.crop;
+    ratioChips.querySelectorAll(".ratio-chip").forEach(btn => {
+      btn.classList.toggle("active", Number(btn.dataset.ratio) === crop);
+    });
+  }
+
+  function syncPanel() {
+    if (!state.openSetting) return;
+
+    if (state.openSetting === "crop") {
+      panelName.textContent = "Crop";
+      panelCode.textContent = "";
+      panelCode.style.display = "none";
+      sliderControls.hidden = true;
+      cropControls.hidden = false;
+      resetSettingBtn.title = "Reset crop";
+      updateCropChips();
+      return;
+    }
+
+    const s = getSetting(state.openSetting);
+    if (!s) return;
+    const v = images[state.activeImage].values[s.key];
+    const showCode = s.label.toLowerCase() !== s.name.toLowerCase();
+    panelName.textContent = s.name;
+    panelCode.textContent = showCode ? s.label : "";
+    panelCode.style.display = showCode ? "" : "none";
+    sliderControls.hidden = false;
+    cropControls.hidden = true;
+    resetSettingBtn.title = "Reset adjustment";
+    slider.min = s.min;
+    slider.max = s.max;
+    slider.step = "1";
+    slider.value = v;
+    slider.setAttribute("aria-label", s.name);
+    panelValue.textContent = fmt(s, v);
+  }
+
+  function openPanel(key, toggle = true) {
+    if (toggle && state.openSetting === key) {
+      closePanel();
+      return;
+    }
+    state.openSetting = key;
+    syncPanel();
+    sliderPanel.classList.add("open");
+    applyState();
+    setTimeout(fitFrame, 340);
+  }
+
+  function closePanel() {
+    state.openSetting = null;
+    sliderPanel.classList.remove("open");
+    applyState();
+    setTimeout(fitFrame, 340);
+  }
+
+  /* ---------------- histogram ---------------- */
+  function channelPoints(seed, phase) {
+    const n = 46;
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = i / (n - 1);
+      const x = t * 240;
+      const envelope = Math.sin(Math.PI * (0.1 + 0.9 * t));
+      const wave = Math.abs(
+        Math.sin((i + seed * 7.3 + phase) * 1.7) *
+        Math.sin((i + seed * 3.1) * 0.53 + phase)
+      );
+      const val = 0.1 + envelope * (0.32 + 0.68 * wave);
+      pts.push([x, 52 - val * 46]);
+    }
+    return pts;
+  }
+
+  function updateHistogram(seed) {
+    const channels = [
+      { color: "#ff7a7a", phase: 0.4 },
+      { color: "#7dffb2", phase: 2.1 },
+      { color: "#7aa8ff", phase: 4.2 }
+    ];
+    const paths = channels.map((c, i) => {
+      const pts = channelPoints(seed * 3 + i + 1, c.phase);
+      const line = pts.map((p, j) => (j ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+      const area = line + " L240 52 L0 52 Z";
+      return `<path d="${area}" fill="${c.color}" opacity="0.1"/><path d="${line}" fill="none" stroke="${c.color}" stroke-width="1" opacity="0.6"/>`;
+    }).join("");
+    histogram.innerHTML = `<svg viewBox="0 0 240 52" preserveAspectRatio="none">
+      ${paths}
+      <line x1="0" y1="51.5" x2="240" y2="51.5" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+    </svg>`;
+  }
+
+  /* ---------------- image selection ---------------- */
+  function selectImage(index) {
+    commitNow();
+    state.activeImage = index;
+    const img = images[index];
+
+    photoMedia.innerHTML = img.svg;
+    miniMedia.innerHTML = img.svg;
+
+    docName.textContent = img.name;
+    docMeta.textContent = img.meta;
+    dimsEl.textContent = img.dims;
+    statIso.textContent = img.exif.iso;
+    statAp.textContent = img.exif.aperture;
+    statSh.textContent = img.exif.shutter;
+    stageInfo.innerHTML = `${img.exif.shutter}<span class="sdot"></span>${img.exif.aperture}<span class="sdot"></span>ISO ${img.exif.iso}<span class="sdot"></span>${img.exif.focal}`;
+
+    document.querySelectorAll(".thumb").forEach((el, i) => {
+      el.classList.toggle("active", i === index);
+    });
+
+    updateHistogram(index + 1);
+    syncPanel();
+    applyState();
+    fitFrame();
+  }
+
+  /* ---------------- rendering ---------------- */
+  thumbsEl.innerHTML = images.map((img, i) => `
+    <button class="thumb${i === 0 ? " active" : ""}" type="button" data-index="${i}">
+      <span class="thumb-media">${img.svg}</span>
+      <span class="thumb-text">
+        <span class="thumb-name">${img.name}</span>
+        <span class="thumb-meta">${img.meta}</span>
+      </span>
+      <span class="thumb-flag" aria-hidden="true"></span>
+    </button>
+  `).join("");
+
+  $("#count").textContent = String(images.length).padStart(2, "0");
+
+  const SEARCH_ALIASES = {
+    wb: "white balance temperature warm cool",
+    tint: "magenta green",
+    ev: "exposure brightness",
+    contrast: "contrast",
+    highlights: "highlights light",
+    shadows: "shadows dark",
+    clarity: "clarity detail",
+    sat: "saturation vibrance color",
+    vignette: "vignette edges",
+    rotate: "rotate angle straighten"
+  };
+
+  const renderSettingBtn = s => `
+    <button class="setting-btn" type="button" data-key="${s.key}" data-search="${s.key} ${s.name} ${SEARCH_ALIASES[s.key] || ""}"
+            aria-expanded="false" aria-pressed="false">${s.label}</button>
+  `;
+  const rotateSetting = SETTINGS[SETTINGS.length - 1];
+  settingsRow.innerHTML =
+    '<button class="setting-btn" type="button" data-key="film" data-search="film negative positive invert develop" aria-pressed="false">Film</button>' +
+    '<button class="setting-btn" type="button" data-key="crop" data-search="crop aspect ratio frame" aria-expanded="false" aria-pressed="false">Crop</button>' +
+    renderSettingBtn(rotateSetting) +
+    '<span class="row-sep" aria-hidden="true"></span>' +
+    SETTINGS.slice(0, -1).map(renderSettingBtn).join("");
+
+  ratioChips.innerHTML = CROPS.map((c, i) => `
+    <button type="button" class="ratio-chip" data-ratio="${i}">${c.label}</button>
+  `).join("");
+
+  thumbsEl.addEventListener("click", e => {
+    const btn = e.target.closest(".thumb");
+    if (!btn) return;
+    selectImage(Number(btn.dataset.index));
+  });
+
+  settingsRow.addEventListener("click", e => {
+    const btn = e.target.closest(".setting-btn");
+    if (!btn) return;
+
+    if (btn.dataset.key === "film") {
+      const img = images[state.activeImage];
+      img.values.film = img.values.film ? 0 : 1;
+      applyState();
+      commitNow();
+      showToast(img.values.film ? "Film · inverted" : "Film · positive");
+      return;
+    }
+
+    openPanel(btn.dataset.key);
+  });
+
+  function applyToolFilter() {
+    const query = toolSearch.value.trim().toLowerCase();
+    settingsRow.querySelectorAll(".setting-btn").forEach(btn => {
+      const haystack = (btn.dataset.search || btn.textContent).toLowerCase();
+      btn.style.display = !query || haystack.includes(query) ? "" : "none";
+    });
+    settingsRow.querySelectorAll(".row-sep").forEach(sep => {
+      sep.style.display = query ? "none" : "";
+    });
+  }
+
+  toolSearch.addEventListener("input", applyToolFilter);
+  toolSearch.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      toolSearch.value = "";
+      applyToolFilter();
+      toolSearch.blur();
+    }
+  });
+
+  ratioChips.addEventListener("click", e => {
+    const btn = e.target.closest(".ratio-chip");
+    if (!btn) return;
+    const index = Number(btn.dataset.ratio);
+    images[state.activeImage].values.crop = index;
+    applyState();
+    syncPanel();
+    fitFrame();
+    commitNow();
+    showToast("Crop · " + CROPS[index].label);
+  });
+
+
+  slider.addEventListener("input", () => {
+    if (!state.openSetting) return;
+    const s = getSetting(state.openSetting);
+    const v = Number(slider.value);
+    images[state.activeImage].values[s.key] = v;
+    panelValue.textContent = fmt(s, v);
+    applyState();
+    scheduleCommit();
+  });
+
+  resetSettingBtn.addEventListener("click", () => {
+    if (!state.openSetting) return;
+    const img = images[state.activeImage];
+
+    if (state.openSetting === "crop") {
+      img.values.crop = 0;
+      applyState();
+      syncPanel();
+      fitFrame();
+      commitNow();
+      showToast("Crop reset");
+      return;
+    }
+
+    const s = getSetting(state.openSetting);
+    img.values[s.key] = s.def;
+    slider.value = s.def;
+    panelValue.textContent = fmt(s, s.def);
+    applyState();
+    commitNow();
+    showToast(`${s.name} reset`);
+  });
+
+  resetAllBtn.addEventListener("click", () => {
+    const img = images[state.activeImage];
+    SETTINGS.forEach(s => { img.values[s.key] = s.def; });
+    img.values.crop = 0;
+    img.values.negative = 0;
+    applyState();
+    syncPanel();
+    fitFrame();
+    commitNow();
+    showToast("Edits reset");
+  });
+
+  undoBtn.addEventListener("click", undo);
+  redoBtn.addEventListener("click", redo);
+
+  window.addEventListener("keydown", e => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    } else if (mod && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redo();
+    } else if (e.code === "Space" && !e.target.closest("input,button,textarea,select")) {
+      e.preventDefault();
+      startCompare();
+    }
+  });
+
+  window.addEventListener("keyup", e => {
+    if (e.code === "Space") endCompare();
+  });
+
+  /* ---------------- compare ---------------- */
+  let comparing = false;
+  function startCompare() {
+    if (comparing) return;
+    comparing = true;
+    stage.classList.add("comparing");
+    compareBtn.classList.add("active");
+    compareBtn.querySelector("span").textContent = "Viewing original";
+  }
+  function endCompare() {
+    if (!comparing) return;
+    comparing = false;
+    stage.classList.remove("comparing");
+    compareBtn.classList.remove("active");
+    compareBtn.querySelector("span").textContent = "Hold to compare";
+  }
+
+  compareBtn.addEventListener("pointerdown", e => {
+    e.preventDefault();
+    startCompare();
+  });
+  window.addEventListener("pointerup", endCompare);
+  window.addEventListener("pointercancel", endCompare);
+
+  /* ---------------- fit ---------------- */
+  let lastMini = "";
+
+  function fitMini() {
+    if (!previewPanel || previewPanel.offsetParent === null) return;
+    const maxW = previewPanel.clientWidth - 4;
+    const maxH = 158;
+    if (maxW <= 0) return;
+    const ratio = currentRatio();
+    const key = ratio + ":" + maxW;
+    if (key === lastMini) return;
+    lastMini = key;
+    const w = Math.min(maxW, maxH * ratio);
+    const h = w / ratio;
+    miniFrame.style.width = Math.round(w) + "px";
+    miniFrame.style.height = Math.round(h) + "px";
+  }
+
+  function fitFrame() {
+    const w = stage.clientWidth - 64;
+    const h = stage.clientHeight - 104;
+    if (w <= 0 || h <= 0) return;
+    const ratio = currentRatio();
+    const fw = Math.min(w, h * ratio);
+    const fh = fw / ratio;
+    frame.style.width = Math.round(fw) + "px";
+    frame.style.height = Math.round(fh) + "px";
+    fitMini();
+  }
+
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => fitFrame()).observe(stage);
+  }
+  window.addEventListener("resize", fitFrame);
+
+  /* ---------------- toast ---------------- */
+  let toastTimer = null;
+  function showToast(text) {
+    toastText.textContent = text;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
+  }
+
+  /* ---------------- export ---------------- */
+  function exportImage() {
+    const img = images[state.activeImage];
+    const svg = photoMedia.querySelector("svg");
+    if (!svg) return;
+
+    exportBtn.disabled = true;
+    exportLabel.textContent = "Exporting…";
+
+    const ratio = (CROPS[img.values.crop] || CROPS[0]).ratio;
+    const long = 1600;
+    const W = ratio >= 1 ? long : Math.round(long * ratio);
+    const H = ratio >= 1 ? Math.round(long / ratio) : long;
+
+    const clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    clone.setAttribute("width", "1600");
+    clone.setAttribute("height", "1200");
+    const svgString = new XMLSerializer().serializeToString(clone);
+    const url = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
+
+    const image = new Image();
+
+    image.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = W;
+        canvas.height = H;
+        const ctx = canvas.getContext("2d");
+        const v = img.values;
+
+        const iw = Math.max(W, H * 4 / 3);
+        const ih = iw * 3 / 4;
+        const scale = v.rotate ? rotationScale(v.rotate, W / H) : 1;
+
+        ctx.save();
+        ctx.translate(W / 2, H / 2);
+        ctx.rotate((v.rotate || 0) * Math.PI / 180);
+        ctx.filter = filterFor(v);
+        ctx.drawImage(image, -iw * scale / 2, -ih * scale / 2, iw * scale, ih * scale);
+        ctx.restore();
+        ctx.filter = "none";
+
+        const fill = (color, alpha, mode) => {
+          ctx.globalCompositeOperation = mode;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, W, H);
+        };
+
+        fill(v.wb >= 0 ? "#ff963c" : "#4f9bff", Math.abs(v.wb) / 100 * 0.45, "soft-light");
+        fill(v.tint >= 0 ? "#ff4fc4" : "#4dffb0", Math.abs(v.tint) / 100 * 0.3, "soft-light");
+        fill(v.highlights >= 0 ? "#ffffff" : "#000000", Math.abs(v.highlights) / 100 * 0.26, "overlay");
+
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+
+        if (v.vignette > 0) {
+          const cx = W / 2;
+          const cy = H * 0.46;
+          const r = Math.max(W, H) * 0.68;
+          const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+          grad.addColorStop(0, "rgba(0,0,0,0)");
+          grad.addColorStop(0.55, "rgba(0,0,0,0)");
+          grad.addColorStop(1, `rgba(0,0,0,${v.vignette / 100 * 0.82})`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, W, H);
+        }
+
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+
+        canvas.toBlob(blob => {
+          const link = document.createElement("a");
+          const slug = img.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+          link.href = URL.createObjectURL(blob);
+          link.download = slug + "-emulsion.png";
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(link.href), 1500);
+          showToast("Exported · " + slug + ".png");
+        }, "image/png");
+      } catch (err) {
+        showToast("Export failed");
+      } finally {
+        exportBtn.disabled = false;
+        exportLabel.textContent = "Export";
+      }
+    };
+
+    image.onerror = () => {
+      exportBtn.disabled = false;
+      exportLabel.textContent = "Export";
+      showToast("Export failed");
+    };
+
+    image.src = url;
+  }
+
+  exportBtn.addEventListener("click", exportImage);
+
+  /* ---------------- init ---------------- */
+  selectImage(0);
+  openPanel("wb", false);
+  updateHistoryButtons();
+  requestAnimationFrame(fitFrame);
+})();
+</script>
+</body>
+</html>
