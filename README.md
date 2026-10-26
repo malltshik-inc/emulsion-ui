@@ -2,7 +2,7 @@
 
 A browser-based design concept for a minimalist photo editor with a warm editorial aesthetic.
 
-Live demo: https://malltshik.github.io/emulsion-ui
+Live demo: https://malltshik-inc.github.io/emulsion-ui
 
 ## Overview
 
